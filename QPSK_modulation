@@ -1,0 +1,146 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jan 11 14:55:06 2014
+
+@author: nunom_000
+"""
+
+import numpy as np
+import re                #regular expressions
+import matplotlib.pyplot as plt
+
+def modulacaoQPSK(arrayBit,P,A):
+    Rb= 10. 
+    f=2*Rb
+    #S(t)=A.cos(2pi*f*t+(pi/4)(2i-1))
+    fs = 2.5*f #fs tem de ser pelo menos o dobro do f
+    t= np.arange(P)/fs 
+    S01 = np.ones(P)*A*np.cos(2*np.pi*f*t+(np.pi/4.)*(1))
+    S11 = np.ones(P)*A*np.cos(2*np.pi*f*t+(np.pi/4.)*(3))
+    S10 = np.ones(P)*A*np.cos(2*np.pi*f*t+(np.pi/4.)*(5))
+    S00 = np.ones(P)*A*np.cos(2*np.pi*f*t+(np.pi/4.)*(7))
+    
+    x = np.zeros(len(arrayBit)*P/2)
+    if isinstance(arrayBit, str) :   
+        for iO, iS  in zip(range(0,len(arrayBit),2),range(len(x))):
+            if arrayBit[iO:iO+2] == '00':      
+                x[iS*P:(iS+1)*P]=S00
+            elif arrayBit[iO:iO+2] == '01':      
+                x[iS*P:(iS+1)*P]=S01 
+            elif arrayBit[iO:iO+2] == '11': 
+                x[iS*P:(iS+1)*P]=S11
+            elif arrayBit[iO:iO+2] == '10': 
+                x[iS*P:(iS+1)*P]=S10
+    else:
+        for iO, iS  in zip(range(0,len(arrayBit),2),range(len(x))):
+            if re.sub("[^0-9]", "",str(arrayBit[iO:iO+2])) == '00':
+                x[iS*P:(iS+1)*P]=S00
+            elif re.sub("[^0-9]", "",str(arrayBit[iO:iO+2])) == '01':      
+                x[iS*P:(iS+1)*P]=S01               
+            elif re.sub("[^0-9]", "",str(arrayBit[iO:iO+2])) == '11': 
+                x[iS*P:(iS+1)*P]=S11 
+            elif re.sub("[^0-9]", "",str(arrayBit[iO:iO+2])) == '10': 
+                x[iS*P:(iS+1)*P]=S10
+    return x
+    
+    
+    
+def filtroAdaptadoQPSK(codLinha, limDecisao, P):
+    while(len(codLinha)%(P*2)*1.!=0):
+        codLinha = np.hstack((codLinha, np.zeros(1)))
+    
+    Tb = 1/10. 
+    f = 2*(1./Tb)
+    fs = 2.5*f #fs tem de ser pelo menos o dobro do f
+    t = np.arange(P)/fs 
+    seqBin = np.zeros((len(codLinha)/P)*2)
+    
+    c1 = np.ones(P)*np.sqrt((2./Tb))*np.cos(2*np.pi*f*t)
+    c2 = np.ones(P)*np.sqrt((2./Tb))*(-1)*np.sin(2*np.pi*f*t)
+    ids = np.repeat(np.arange(len(codLinha)/P), P) 
+
+    c1 = np.tile(c1, len(codLinha)/(P))
+    c2 = np.tile(c2, len(codLinha)/(P))   
+    
+    ValorX = np.bincount(ids, weights = codLinha*c1)
+    ValorY = np.bincount(ids, weights = codLinha*c2)
+    
+    index01 = np.where(np.logical_and(ValorX>=limDecisao, ValorY>=limDecisao))[0]
+    seqBin[2*index01] = 0
+    seqBin[(2*index01)+1] = 1
+    
+    index00 = np.where(np.logical_and(ValorX>=limDecisao, ValorY<limDecisao))[0]
+    seqBin[2*index00] = 0
+    seqBin[(2*index00)+1] = 0
+    
+    index11 = np.where(np.logical_and(ValorX<limDecisao, ValorY>=limDecisao))[0]
+    seqBin[2*index11] = 1
+    seqBin[(2*index11)+1] = 1
+    
+    index10 = np.where(np.logical_and(ValorX<limDecisao, ValorY<limDecisao))[0]
+    seqBin[2*index10] = 1
+    seqBin[(2*index10)+1] = 0
+    
+    return np.array([seqBin , ValorX,ValorY])  
+    
+
+
+def testesModulacao():
+    Array = np.array([0,0,0,1,1,0,1,1])
+    ArrayQPSK1 = modulacaoQPSK(Array,6,1)
+    ArrayQPSK2 = modulacaoQPSK(Array,16,1)
+    
+    ArrayQPSK3 = modulacaoQPSK(Array,10,1)
+    ArrayQPSK4 = modulacaoQPSK(Array,10,5)
+    ArrayQPSK5 = modulacaoQPSK(Array,10,10)
+    
+    plt.figure("Sinal QPSK")
+    plt.title('Sinal Modulado')
+    plt.subplot(211)  
+    plt.title('A=1')
+    plt.plot(ArrayQPSK1, label="P=6")
+    plt.plot(ArrayQPSK2, label="P=16")
+    plt.legend()
+    plt.subplot(212)
+    plt.title('P=10')
+    plt.plot(ArrayQPSK3, label="A=1")
+    plt.plot(ArrayQPSK4, label="A=5")
+    plt.plot(ArrayQPSK5, label="A=10")  
+    plt.legend()
+    plt.grid()
+    plt.show()
+    
+    
+    ArrayFiltrado1 , ValorX1,ValorY1 = filtroAdaptadoQPSK(ArrayQPSK1, 0, 6)
+    ArrayFiltrado2 , ValorX2,ValorY2 = filtroAdaptadoQPSK(ArrayQPSK2, 0, 16)
+    ArrayFiltrado3 , ValorX3,ValorY3 = filtroAdaptadoQPSK(ArrayQPSK3, 0, 10)
+    ArrayFiltrado4 , ValorX4,ValorY4 = filtroAdaptadoQPSK(ArrayQPSK4, 0, 10)
+    ArrayFiltrado5 , ValorX5,ValorY5 = filtroAdaptadoQPSK(ArrayQPSK5, 0, 10)
+    
+    plt.figure("Constelacao Filtro Adaptado QPSK")
+    plt.title('Constelacao')
+    plt.plot(ValorX1,ValorY1,'x', label="A=1 P=6")
+    plt.plot(ValorX2,ValorY2,'x', label="A=1 P=16")
+    plt.plot(ValorX3,ValorY3,'x', label="A=1 P=10")
+    plt.plot(ValorX4,ValorY4,'x', label="A=5 P=10")
+    plt.plot(ValorX5,ValorY5,'x', label="A=10 P=10")
+    plt.legend()
+    plt.grid()
+    plt.show()
+    
+    print "Sinal entrada:"
+    print Array
+    print "\nSinais de saida:"
+    print ArrayFiltrado1
+    print ArrayFiltrado2
+    print ArrayFiltrado3
+    print ArrayFiltrado4
+    print ArrayFiltrado5
+    
+    return None
+    
+    
+    
+if __name__ == "__main__":
+    testesModulacao()
+    
