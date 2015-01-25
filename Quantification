@@ -1,0 +1,153 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jan 11 14:52:31 2014
+
+@author: G1
+"""
+
+import numpy as np
+import scipy.signal as ss
+import scipy.io.wavfile as sio
+import matplotlib.pyplot as plt
+
+'''
+Cria as tabelas com os valores de decisao e de 
+quantificacao para um quantificador uniforme midrise. 
+Esta funcao tem como parametros de entrada o numero de bits por amostra e o 
+valor maximo a quantificar. Como parametros de saida tem dois arrays com 
+valores de quantificacao e valores de decisao.
+'''
+
+def valoresQuant(R, valorMax):
+    #R=nºbits
+    L = 2**R    #n intervalos
+    intV = 2.*valorMax/L      #delta V
+    vD = np.arange(-valorMax*1., valorMax+intV, intV) #valores decisao
+    vQ = np.arange(-valorMax*1.+(intV/2.), valorMax, intV) #valroes quantificaçao
+    return vD, vQ
+    
+    
+'''
+Dado um array com as amplitudes de um sinal amostrado, retorne um array do mesmo 
+tamanho com o sinal quantificado. 
+Esta funcao tem como parametros de entrada o sinal, as tabelas com os
+valores de quantificacao e de decisao. Como parametros de saida retorna o array 
+com o sinal de saida e um array com o indice dos valores de quantificacao usados.
+'''
+
+def quantificacao(Arraysinal, vD, vQ):
+    SinalQuantificado = np.zeros(len(Arraysinal))
+    IndicesQ = np.zeros(len(Arraysinal), dtype=np.int)
+    for j in range(len(vD)-1):
+        valores = np.where(np.logical_and(Arraysinal>=vD[j], Arraysinal<vD[j+1]))[0]
+        SinalQuantificado[valores]=vQ[j]
+        IndicesQ[valores]=j
+        
+    valores = np.where(Arraysinal<vD[0])
+    SinalQuantificado[valores]=vQ[0]
+    IndicesQ[valores]=0
+    
+    valores = np.where(Arraysinal>vD[-1])
+    SinalQuantificado[valores]=vQ[-1]
+    IndicesQ[valores]=len(vD)-1
+              
+    return SinalQuantificado, IndicesQ
+    
+def DescodificacaoDoSinal(valoresCodificacao, arrayIndices):
+    ArraySaida=np.zeros(len(arrayIndices))
+    for i in range(len(arrayIndices)):
+        ArraySaida[i] = valoresCodificacao[int(arrayIndices[i])]
+    return ArraySaida
+     
+        
+    
+def testesQuantificacao():
+    (rate,sample) = sio.read("som_48_16_mono_semMetadata.wav")
+   
+    sample8K = ss.resample(sample, len(sample)/6)
+    tempo = np.arange(len(sample8K))* 1./8000   
+    
+    R4 = 4
+    R8 = 8
+    R16 = 16
+
+    vD4, vQ4 = valoresQuant(R4,np.max(abs(sample8K)))
+    SinalQuantificado4, IndicesQ4 = quantificacao(sample8K, vD4, vQ4)
+        
+    vD8, vQ8 = valoresQuant(R8,np.max(abs(sample8K)))
+    SinalQuantificado8, IndicesQ8 = quantificacao(sample8K, vD8, vQ8)
+    
+    vD16, vQ16 = valoresQuant(R16,np.max(abs(sample8K)))
+    SinalQuantificado16, IndicesQ16 = quantificacao(sample8K, vD16, vQ16)
+    
+    plt.figure('Quantificação')
+    plt.title("Sinais no dominio do tempo")
+    plt.subplot(3,1,1)    
+    plt.plot(tempo, sample8K)
+    plt.plot(tempo, SinalQuantificado4)
+    plt.legend(('sinal original','sinal quantificado R=4'))
+    plt.subplot(3,1,2)    
+    plt.plot(tempo, sample8K)
+    plt.plot(tempo, SinalQuantificado8)
+    plt.legend(('sinal original','sinal quantificado R=8'))
+    plt.subplot(3,1,3)    
+    plt.plot(tempo, sample8K)
+    plt.plot(tempo, SinalQuantificado16)
+    plt.legend(('sinal original','sinal quantificado R=16'))
+    plt.show()
+    
+    plt.figure("Sinal quantificado em funcao do sinal original")
+    plt.title("Sinal quantificado em funcao do sinal original")
+    plt.subplot(3,1,1)    
+    plt.plot(sample8K, IndicesQ4, "x")
+    plt.subplot(3,1,2)    
+    plt.plot(sample8K, IndicesQ8, "x")
+    plt.subplot(3,1,3)    
+    plt.plot(sample8K, IndicesQ16, "x")
+    plt.show()
+
+    plt.figure("Sinal quantificado em funcao do sinal original ")
+    plt.title("Sinal quantificado em funcao do sinal original")    
+    plt.plot(sample8K, SinalQuantificado4, "x")  
+    plt.plot(sample8K, SinalQuantificado8, "x")   
+    plt.plot(sample8K, SinalQuantificado16, "x")
+    plt.show()    
+    
+    SinalSaida4 = DescodificacaoDoSinal(vQ16, IndicesQ4)
+    SinalSaida8 = DescodificacaoDoSinal(vQ16, IndicesQ8)
+    SinalSaida16 = DescodificacaoDoSinal(vQ16, IndicesQ16)
+    
+    plt.figure('Quantificação Inversa')
+    plt.title("Sinais obtidos no dominio do tempo")
+    plt.subplot(3,1,1)    
+    plt.plot(tempo, sample8K)
+    plt.plot(tempo, SinalSaida4)
+    plt.legend(('sinal original','sinal obtido R=4'))
+    plt.subplot(3,1,2)    
+    plt.plot(tempo, sample8K)
+    plt.plot(tempo, SinalSaida8)
+    plt.legend(('sinal original','sinal obtido R=8'))
+    plt.subplot(3,1,3)    
+    plt.plot(tempo, sample8K)
+    plt.plot(tempo, SinalSaida16)
+    plt.legend(('sinal original','sinal obtido R=16'))
+    plt.show()
+        
+    plt.figure('Erro')
+    plt.title("Erro em função do tempo")
+    plt.subplot(3,1,1)    
+    plt.plot(tempo, sample8K - SinalSaida4)
+    plt.legend(('sinal original','sinal obtido R=4'))
+    plt.subplot(3,1,2)    
+    plt.plot(tempo, sample8K - SinalSaida8)
+    plt.legend(('sinal original','sinal obtido R=8'))
+    plt.subplot(3,1,3)    
+    plt.plot(tempo, sample8K - SinalSaida16)
+    plt.legend(('sinal original','sinal obtido R=16'))
+    plt.show()
+    
+    return None
+    
+    
+if __name__ == "__main__":
+    testesQuantificacao()    
