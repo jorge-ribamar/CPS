@@ -1,0 +1,171 @@
+# !/usr/bin/python
+# -*- coding: iso-8859-15 -*-
+"""
+Created on Sat Jan 11 14:52:31 2014
+
+@author: G1
+"""
+
+import numpy as np
+import scipy.signal as ss
+import scipy.io.wavfile as sio
+import matplotlib.pyplot as plt
+
+def Hamming(sinal):
+    adicionar = (4 - len(sinal) %4)%4
+    sinal = np.hstack((sinal,np.ones(adicionar)))
+    sinalSaida = np.ones(len(sinal)+(len(sinal)/4)*3)
+    G = np.array([[1,0,0,0,1,1,1],[0,1,0,0,1,1,0],[0,0,1,0,1,0,1],[0,0,0,1,0,1,1]])
+    for i in np.arange(len(sinal)/4):
+        C=np.dot((sinal[i*4:((i+1)*4)]),G)%2
+        sinalSaida[i*7:(i+1)*7]= C     
+    return sinalSaida
+    
+def detectarCorrigirErros(sinalIn):
+    sinal = np.array(sinalIn)
+    sinalSaida = np.ones((len(sinal)/7)*4)
+    Ht = np.array([[1,1,1],[1,1,0],[1,0,1],[0,1,1],[1,0,0],[0,1,0],[0,0,1]])
+    for i in np.arange(len(sinal)/7):
+        S = np.dot((sinal[i*7:(i+1)*7]),Ht)%2
+        if sum(S)!= 0:
+            index = -int(str(int(100* S[0]+10*S[1]+S[2])),2)
+            if index==-3 :
+                index = -4
+            elif index==-4:
+                index = -3
+            sinal[(i*7):(i+1)*7][index]=abs(sinal[(i*7):(i+1)*7][index]-1)
+        sinalSaida[i*4:(i+1)*4]= sinal[(i*7):(i*7)+4]
+    return sinalSaida
+    
+    
+def retirarBitsRedundantes(array, nBitsSinal, nBitsRedundantes):
+    ArrayIn= np.array(array)
+    Boolean = np.zeros(nBitsSinal+nBitsRedundantes)
+    Boolean[0:nBitsSinal]=True
+    Boolean[nBitsSinal+1:nBitsSinal+1+nBitsRedundantes]=False
+    Boolean = np.tile(Boolean, len(ArrayIn)/(nBitsSinal+nBitsRedundantes)) 
+    return ArrayIn[np.where(Boolean==1)]
+
+
+
+    
+def testesHamming():
+    Array1 = np.array([0,0,0,1,1,0,1,1])
+    print "Array inicial: "+str(Array1) 
+    Hamming1 = Hamming(Array1)
+    print "Código Hamming: "+str(Hamming1)
+    Recontrucao1 = detectarCorrigirErros(Hamming1)
+    print "Reconstrução sem erro: "+str(Recontrucao1)
+    
+    print "\n\n-----Introdução de Erro-----"
+    HammingE1 = Hamming(Array1)
+    HammingE1[0]=1
+    CorrigidoE1=detectarCorrigirErros(HammingE1)
+    HammingE2 = Hamming(Array1)
+    HammingE2[1]=1
+    CorrigidoE2=detectarCorrigirErros(HammingE2)
+    HammingE3 = Hamming(Array1)
+    HammingE3[2]=1
+    CorrigidoE3=detectarCorrigirErros(HammingE3)
+    HammingE4 = Hamming(Array1)
+    HammingE4[3]=0
+    CorrigidoE4=detectarCorrigirErros(HammingE4)
+    HammingE5 = Hamming(Array1)
+    HammingE5[4]=1
+    CorrigidoE5=detectarCorrigirErros(HammingE5)
+    HammingE6 = Hamming(Array1)
+    HammingE6[5]=0
+    CorrigidoE6=detectarCorrigirErros(HammingE6)
+    HammingE7 = Hamming(Array1)
+    HammingE7[6]=0
+    CorrigidoE7=detectarCorrigirErros(HammingE7)
+    print "Erro no 1º bit: "+str(HammingE1)
+    print "Array corrigido: "+ str(CorrigidoE1)
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE1-Array1)+"\n"
+    
+    print "Erro no 2º bit: "+str(HammingE2)
+    print "Array corrigido: "+ str(CorrigidoE2)
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE2-Array1)+"\n"
+    
+    print "Erro no 3º bit: "+str(HammingE3)
+    print "Array corrigido: "+ str(CorrigidoE3)
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE3-Array1)+"\n"
+    
+    print "Erro no 4º bit: "+str(HammingE4)
+    print "Array corrigido: "+ str(CorrigidoE4)
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE4-Array1)+"\n"
+    
+    print "Erro no 5º bit: "+str(HammingE5)
+    print "Array corrigido: "+ str(CorrigidoE5)
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE5-Array1)+"\n"
+    
+    print "Erro no 6º bit: "+str(HammingE6)
+    print "Array corrigido: "+ str(CorrigidoE6)
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE6-Array1)+"\n"
+    
+    print "Erro no 7º bit: "+str(HammingE7)
+    print "Array corrigido: "+ str(CorrigidoE7)    
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE7-Array1)+"\n"
+    
+    print"\n\n-----Incluindo 2 erros num conjunto de 7 bits-----"
+    HammingE1 = Hamming(Array1)
+    
+    HammingE1[0]=1
+    HammingE1[1]=1
+    CorrigidoE1=detectarCorrigirErros(HammingE1)
+    
+    HammingE2 = Hamming(Array1)
+    HammingE2[2]=1
+    HammingE2[3]=0
+    CorrigidoE2=detectarCorrigirErros(HammingE2)
+    
+    HammingE3 = Hamming(Array1)
+    HammingE3[4]=1
+    HammingE3[5]=0
+    CorrigidoE3=detectarCorrigirErros(HammingE3)
+    
+    HammingE4 = Hamming(Array1)
+    HammingE4[5]=0
+    HammingE4[6]=0
+    CorrigidoE4=detectarCorrigirErros(HammingE4)
+    
+    print "Erro no 1º e 2º bits: "
+    print str(HammingE1)
+    print "Array corrigido: "+ str(CorrigidoE1)    
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE1-Array1)+"\n"
+    
+    print "Erro no 3º e 4º bits: "
+    print str(HammingE2)
+    print "Array corrigido: "+ str(CorrigidoE2)    
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE2-Array1)+"\n"
+    
+    print "Erro no 5º e 6º bits: "
+    print str(HammingE3)
+    print "Array corrigido: "+ str(CorrigidoE3)    
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE3-Array1)+"\n"
+
+    print "Erro no 6º e 7º bits: "
+    print str(HammingE4)
+    print "Array corrigido: "+ str(CorrigidoE4)    
+    print "Diferença corrigido-original:"
+    print str(CorrigidoE4-Array1)+"\n"    
+    
+    print"\n\n-----Função auxiliar de exclusão dos bits redundantes-----"    
+    RetirarRedundantes = retirarBitsRedundantes(Hamming1, 4, 3)
+    print "Código Hamming com os bits redundantes excluidos:"
+    print RetirarRedundantes
+    return None
+    
+    
+if __name__ == "__main__":
+    testesHamming()    
